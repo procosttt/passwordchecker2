@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Проверка надежности пароля</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="page-bg"></div>
+
+    <main class="container">
+        <section class="hero">
+            <div class="hero-badge">Мини-сервис безопасности</div>
+            <h1>Проверка надежности пароля</h1>
+            <p class="hero-text">
+                Быстрая оценка пароля с понятными подсказками:
+                длина, символы, шаблоны, повторы и личные данные.
+            </p>
+        </section>
+
+        <section class="card glass">
+            <form method="POST" class="password-form">
+                <div class="field">
+                    <label for="password">Пароль</label>
+                    <input
+                        type="text"
+                        id="password"
+                        name="password"
+                        placeholder="Введите пароль"
+                        value="{{ password }}"
+                        required
+                    >
+                </div>
+
+                <div class="field-row">
+                    <div class="field">
+                        <label for="name">Имя (необязательно)</label>
+                        <input
+                            type="text"
+                            id="name"
+                            name="name"
+                            placeholder="Например, Kostya"
+                            value="{{ name }}"
+                        >
+                    </div>
+
+                    <div class="field">
+                        <label for="birth_year">Год рождения (необязательно)</label>
+                        <input
+                            type="text"
+                            id="birth_year"
+                            name="birth_year"
+                            placeholder="Например, 2005"
+                            value="{{ birth_year }}"
+                            maxlength="4"
+                        >
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-primary">Проверить пароль</button>
+            </form>
+        </section>
+
+        {% if result %}
+        <section class="results-grid">
+            <article class="card glass result-main">
+                <div class="result-head">
+                    <div>
+                        <div class="muted">Уровень надежности</div>
+                        <h2>{{ result.level }}</h2>
+                    </div>
+                    <div class="score-circle score-{{ result.score }}">
+                        <span>{{ result.score }}/10</span>
+                    </div>
+                </div>
+
+                <div class="progress-wrap">
+                    <div class="progress-bar">
+                        <div class="progress-fill progress-{{ result.score }}"></div>
+                    </div>
+                </div>
+
+                <p class="result-description">
+                    Чем длиннее и разнообразнее пароль, тем выше его устойчивость к подбору.
+                </p>
+            </article>
+
+            <article class="card glass">
+                <h3>Что проверено</h3>
+                <div class="check-list">
+                    {% for title, value in result.checks %}
+                    <div class="check-item">
+                        <span>{{ title }}</span>
+                        <strong>{{ value }}</strong>
+                    </div>
+                    {% endfor %}
+                </div>
+            </article>
+
+            <article class="card glass">
+                <h3>Предупреждения</h3>
+                {% if result.warnings %}
+                    <ul class="info-list warning-list">
+                        {% for item in result.warnings %}
+                        <li>{{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="empty-state">Серьёзных предупреждений нет.</p>
+                {% endif %}
+            </article>
+
+            <article class="card glass">
+                <h3>Рекомендации</h3>
+                {% if result.tips %}
+                    <ul class="info-list tip-list">
+                        {% for item in result.tips %}
+                        <li>{{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="empty-state">Дополнительных советов нет.</p>
+                {% endif %}
+            </article>
+        </section>
+        {% endif %}
+    </main>
+</body>
+</html>

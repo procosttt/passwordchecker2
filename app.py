@@ -1,161 +1,232 @@
-from flask import Flask, render_template, request
+from __future__ import annotations
+
 import re
+from dataclasses import dataclass, asdict
+from typing import List
+
+from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
 
+COMMON_PASSWORDS = {
+    "password",
+    "123456",
+    "12345678",
+    "qwerty",
+    "111111",
+    "abc123",
+    "admin",
+    "letmein",
+    "welcome",
+    "iloveyou",
+    "passw0rd",
+    "dragon",
+    "monkey",
+}
 
-def analyze_password(password: str, name: str = "", birth_year: str = ""):
-    score = 0
-    tips = []
-    warnings = []
-    checks = []
+KEYBOARD_PATTERNS = [
+    "qwerty",
+    "asdfg",
+    "zxcvb",
+    "12345",
+    "98765",
+]
 
-    pwd_lower = password.lower()
-    name_lower = name.strip().lower()
+LEVELS = [
+    (0, 19, "Очень слабый"),
+    (20, 39, "Слабый"),
+    (40, 59, "Средний"),
+    (60, 79, "Сильный"),
+    (80, 101, "Очень сильный"),
+]
+
+
+@dataclass
+class AnalysisResult:
+    score: int
+    level: str
+    checks: dict
+    warnings: List[str]
+    tips: List[str]
+
+
+def has_sequential_pattern(password: str) -> bool:
+    lower = password.lower()
+    sequences = [
+        "0123456789",
+        "9876543210",
+        "abcdefghijklmnopqrstuvwxyz",
+        "zyxwvutsrqponmlkjihgfedcba",
+    ]
+    for seq in sequences:
+        for i in range(len(seq) - 3):
+            piece = seq[i : i + 4]
+            if piece in lower:
+                return True
+    return any(pattern in lower for pattern in KEYBOARD_PATTERNS)
+
+
+def has_repeated_pattern(password: str) -> bool:
+    if re.search(r"(.)\1{2,}", password):
+        return True
+    for size in range(1, max(2, len(password) // 2 + 1)):
+        part = password[:size]
+        if part and part * (len(password) // len(part)) == password and len(password) >= size * 3:
+            return True
+    return False
+
+
+def contains_personal_data(password: str, name: str, birth_year: str) -> List[str]:
+    found: List[str] = []
+    lower_password = password.lower()
+
+    cleaned_name = re.sub(r"[^a-zA-Zа-яА-Я0-9]", "", name).lower()
+    if cleaned_name and len(cleaned_name) >= 3 and cleaned_name in lower_password:
+        found.append("Имя или его часть")
+
+    if birth_year and birth_year.isdigit() and birth_year in password:
+        found.append("Год рождения")
+
+    return found
+
+
+def estimate_level(score: int) -> str:
+    for start, end, label in LEVELS:
+        if start <= score <= end:
+            return label
+    return "Очень слабый"
+
+
+def analyze_password(password: str, name: str = "", birth_year: str = "") -> AnalysisResult:
+    warnings: List[str] = []
+    tips: List[str] = []
 
     has_lower = bool(re.search(r"[a-zа-я]", password))
     has_upper = bool(re.search(r"[A-ZА-Я]", password))
+    has_letters = has_lower or has_upper
     has_digit = bool(re.search(r"\d", password))
-    has_special = bool(re.search(r"[^a-zA-Zа-яА-Я0-9\s]", password))
-
-    # Длина
+    has_special = bool(re.search(r"[^\w\s]", password))
     length = len(password)
-    if length >= 14:
-        score += 3
-    elif length >= 10:
-        score += 2
-    elif length >= 8:
-        score += 1
-    else:
-        tips.append("Увеличьте длину пароля хотя бы до 10–12 символов.")
 
-    checks.append(("Длина пароля", f"{length} символов"))
-
-    # Категории символов
     categories = sum([has_lower, has_upper, has_digit, has_special])
+    score = 0
 
-    if has_lower:
-        checks.append(("Строчные буквы", "Есть"))
-    else:
-        checks.append(("Строчные буквы", "Нет"))
+    if length >= 16:
+        score += 35
+    elif length >= 12:
+        score += 28
+    elif length >= 10:
+        score += 20
+    elif length >= 8:
+        score += 12
+    elif length > 0:
+        score += 4
 
-    if has_upper:
-        checks.append(("Заглавные буквы", "Есть"))
-    else:
-        checks.append(("Заглавные буквы", "Нет"))
-
+    if has_letters:
+        score += 10
     if has_digit:
-        checks.append(("Цифры", "Есть"))
-    else:
-        checks.append(("Цифры", "Нет"))
-
+        score += 10
     if has_special:
-        checks.append(("Спецсимволы", "Есть"))
-    else:
-        checks.append(("Спецсимволы", "Нет"))
+        score += 12
+    if has_lower and has_upper:
+        score += 10
 
-    score += categories
+    if categories >= 3:
+        score += 8
+    if categories == 4:
+        score += 5
 
-    if categories < 3:
-        tips.append("Добавьте ещё одну категорию символов: заглавные буквы, цифры или спецсимволы.")
+    lowered = password.lower()
+    if lowered in COMMON_PASSWORDS:
+        score -= 45
+        warnings.append("Пароль совпадает с одним из распространённых вариантов.")
 
-    # Простые шаблоны
-    common_patterns = [
-        "1234", "12345", "123456", "qwerty", "qwerty123",
-        "password", "admin", "asdf", "abcd", "1111", "0000"
-    ]
+    if has_sequential_pattern(password):
+        score -= 18
+        warnings.append("Обнаружена простая последовательность вроде 1234, abcd или qwerty.")
 
-    found_pattern = False
-    for pattern in common_patterns:
-        if pattern in pwd_lower:
-            found_pattern = True
-            break
+    if has_repeated_pattern(password):
+        score -= 15
+        warnings.append("Есть повторяющийся шаблон или слишком много одинаковых символов.")
 
-    # Последовательности
-    sequential_patterns = [
-        "0123", "1234", "2345", "3456", "4567", "5678", "6789",
-        "abcd", "bcde", "cdef", "qwer", "wert", "erty"
-    ]
-    if any(seq in pwd_lower for seq in sequential_patterns):
-        found_pattern = True
+    personal_hits = contains_personal_data(password, name, birth_year)
+    if personal_hits:
+        score -= 20
+        warnings.append(
+            "Пароль содержит личные данные: " + ", ".join(personal_hits).lower() + "."
+        )
 
-    if found_pattern:
-        score -= 2
-        warnings.append("Обнаружен простой шаблон: последовательности вроде 1234, abcd или qwerty.")
-        tips.append("Избегайте простых последовательностей и популярных шаблонов.")
+    if length < 8:
+        warnings.append("Пароль слишком короткий.")
+        tips.append("Увеличьте длину минимум до 10–12 символов.")
+    elif length < 12:
+        tips.append("Для лучшей защиты сделайте пароль длиннее 12 символов.")
 
-    # Повторы
-    if re.search(r"(.)\1{2,}", password):
-        score -= 2
-        warnings.append("Есть повторяющиеся символы подряд, например aaa или 111.")
-        tips.append("Не используйте длинные повторы одинаковых символов.")
+    missing = []
+    if not has_letters:
+        missing.append("буквы")
+    if not has_digit:
+        missing.append("цифры")
+    if not has_special:
+        missing.append("спецсимволы")
+    if not (has_lower and has_upper):
+        missing.append("смешанный регистр")
 
-    # Личные данные
-    if name_lower and len(name_lower) >= 2 and name_lower in pwd_lower:
-        score -= 2
-        warnings.append("Пароль содержит имя или его часть.")
-        tips.append("Не используйте личные данные, например имя.")
+    if missing:
+        tips.append("Добавьте: " + ", ".join(dict.fromkeys(missing)) + ".")
 
-    if birth_year and birth_year in password:
-        score -= 2
-        warnings.append("Пароль содержит год рождения.")
-        tips.append("Не используйте дату или год рождения в пароле.")
+    if has_sequential_pattern(password):
+        tips.append("Не используйте простые последовательности и клавиатурные шаблоны.")
 
-    # Бонус за хорошую комбинацию
-    if length >= 12 and categories >= 3 and not found_pattern:
-        score += 2
+    if has_repeated_pattern(password):
+        tips.append("Избегайте повторов вроде aaa, 1111 или повторяющихся блоков.")
 
-    # Ограничим диапазон
-    score = max(0, min(score, 10))
+    if personal_hits:
+        tips.append("Не используйте имя, фамилию, ник или дату рождения.")
 
-    # Уровень надежности
-    if score <= 1:
-        level = "Очень слабый"
-    elif score <= 3:
-        level = "Слабый"
-    elif score <= 5:
-        level = "Средний"
-    elif score <= 7:
-        level = "Сильный"
-    else:
-        level = "Очень сильный"
+    if not tips and score >= 80:
+        tips.append("Хороший пароль. Для хранения используйте менеджер паролей.")
 
-    if not warnings and score >= 7:
-        warnings.append("Явных слабых мест не найдено.")
+    score = max(0, min(100, score))
+    level = estimate_level(score)
 
-    if not tips and score >= 7:
-        tips.append("Пароль выглядит хорошо. Храните его в менеджере паролей и не используйте повторно.")
-
-    return {
-        "score": score,
-        "level": level,
-        "checks": checks,
-        "warnings": warnings,
-        "tips": list(dict.fromkeys(tips)),
-        "password_length": length,
+    checks = {
+        "length": length,
+        "has_letters": has_letters,
+        "has_upper": has_upper,
+        "has_digits": has_digit,
+        "has_special": has_special,
+        "sequential": has_sequential_pattern(password),
+        "repeated": has_repeated_pattern(password),
+        "personal_data": bool(personal_hits),
     }
 
+    unique_tips = list(dict.fromkeys(tips))
+    unique_warnings = list(dict.fromkeys(warnings))
 
-@app.route("/", methods=["GET", "POST"])
-def home():
-    result = None
-    password = ""
-    name = ""
-    birth_year = ""
-
-    if request.method == "POST":
-        password = request.form.get("password", "")
-        name = request.form.get("name", "")
-        birth_year = request.form.get("birth_year", "")
-        result = analyze_password(password, name, birth_year)
-
-    return render_template(
-        "index.html",
-        result=result,
-        password=password,
-        name=name,
-        birth_year=birth_year
+    return AnalysisResult(
+        score=score,
+        level=level,
+        checks=checks,
+        warnings=unique_warnings,
+        tips=unique_tips,
     )
+
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+@app.post("/check")
+def check_password():
+    payload = request.get_json(silent=True) or {}
+    password = str(payload.get("password", ""))
+    name = str(payload.get("name", ""))
+    birth_year = str(payload.get("birth_year", ""))
+
+    result = analyze_password(password=password, name=name, birth_year=birth_year)
+    return jsonify(asdict(result))
 
 
 if __name__ == "__main__":

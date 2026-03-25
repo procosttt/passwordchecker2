@@ -1,130 +1,159 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Проверка надежности пароля</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Проверка надежности пароля</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
-    <div class="page-bg"></div>
+  <div class="page-bg"></div>
+  <main class="wrapper">
+    <section class="card hero">
+      <div class="hero__text">
+        <span class="badge">Мини-сервис</span>
+        <h1>Проверка надежности пароля</h1>
+        <p>
+          Введите пароль и при желании добавьте имя и год рождения, чтобы проверить,
+          нет ли в нём очевидных шаблонов и личных данных.
+        </p>
+      </div>
+      <div class="hero__panel">
+        <form id="password-form" class="form-grid">
+          <label>
+            <span>Пароль</span>
+            <div class="password-row">
+              <input type="password" id="password" placeholder="Введите пароль" autocomplete="off" required />
+              <button type="button" id="toggle-password" class="ghost-btn">Показать</button>
+            </div>
+          </label>
 
-    <main class="container">
-        <section class="hero">
-            <div class="hero-badge">Мини-сервис безопасности</div>
-            <h1>Проверка надежности пароля</h1>
-            <p class="hero-text">
-                Быстрая оценка пароля с понятными подсказками:
-                длина, символы, шаблоны, повторы и личные данные.
-            </p>
-        </section>
+          <div class="split">
+            <label>
+              <span>Имя</span>
+              <input type="text" id="name" placeholder="Например, Kostya" />
+            </label>
+            <label>
+              <span>Год рождения</span>
+              <input type="text" id="birth_year" placeholder="Например, 2001" maxlength="4" />
+            </label>
+          </div>
 
-        <section class="card glass">
-            <form method="POST" class="password-form">
-                <div class="field">
-                    <label for="password">Пароль</label>
-                    <input
-                        type="text"
-                        id="password"
-                        name="password"
-                        placeholder="Введите пароль"
-                        value="{{ password }}"
-                        required
-                    >
-                </div>
+          <button type="submit" class="primary-btn">Проверить пароль</button>
+        </form>
+      </div>
+    </section>
 
-                <div class="field-row">
-                    <div class="field">
-                        <label for="name">Имя (необязательно)</label>
-                        <input
-                            type="text"
-                            id="name"
-                            name="name"
-                            placeholder="Например, Kostya"
-                            value="{{ name }}"
-                        >
-                    </div>
+    <section class="card results" id="results-card">
+      <div class="results__top">
+        <div>
+          <p class="eyebrow">Результат проверки</p>
+          <h2 id="level">—</h2>
+        </div>
+        <div class="score-box">
+          <span>Оценка</span>
+          <strong id="score">0/100</strong>
+        </div>
+      </div>
 
-                    <div class="field">
-                        <label for="birth_year">Год рождения (необязательно)</label>
-                        <input
-                            type="text"
-                            id="birth_year"
-                            name="birth_year"
-                            placeholder="Например, 2005"
-                            value="{{ birth_year }}"
-                            maxlength="4"
-                        >
-                    </div>
-                </div>
+      <div class="meter">
+        <div class="meter__fill" id="meter-fill"></div>
+      </div>
 
-                <button type="submit" class="btn-primary">Проверить пароль</button>
-            </form>
-        </section>
+      <div class="check-grid" id="check-grid">
+        <div class="check-item">Введите пароль для анализа</div>
+      </div>
 
-        {% if result %}
-        <section class="results-grid">
-            <article class="card glass result-main">
-                <div class="result-head">
-                    <div>
-                        <div class="muted">Уровень надежности</div>
-                        <h2>{{ result.level }}</h2>
-                    </div>
-                    <div class="score-circle score-{{ result.score }}">
-                        <span>{{ result.score }}/10</span>
-                    </div>
-                </div>
+      <div class="info-grid">
+        <div class="info-block">
+          <h3>Предупреждения</h3>
+          <ul id="warnings-list">
+            <li>Пока нет данных.</li>
+          </ul>
+        </div>
+        <div class="info-block">
+          <h3>Рекомендации</h3>
+          <ul id="tips-list">
+            <li>Подсказки появятся после проверки.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
 
-                <div class="progress-wrap">
-                    <div class="progress-bar">
-                        <div class="progress-fill progress-{{ result.score }}"></div>
-                    </div>
-                </div>
+  <script>
+    const form = document.getElementById('password-form');
+    const passwordInput = document.getElementById('password');
+    const nameInput = document.getElementById('name');
+    const birthYearInput = document.getElementById('birth_year');
+    const togglePasswordBtn = document.getElementById('toggle-password');
 
-                <p class="result-description">
-                    Чем длиннее и разнообразнее пароль, тем выше его устойчивость к подбору.
-                </p>
-            </article>
+    const levelEl = document.getElementById('level');
+    const scoreEl = document.getElementById('score');
+    const meterFillEl = document.getElementById('meter-fill');
+    const checkGridEl = document.getElementById('check-grid');
+    const warningsListEl = document.getElementById('warnings-list');
+    const tipsListEl = document.getElementById('tips-list');
 
-            <article class="card glass">
-                <h3>Что проверено</h3>
-                <div class="check-list">
-                    {% for title, value in result.checks %}
-                    <div class="check-item">
-                        <span>{{ title }}</span>
-                        <strong>{{ value }}</strong>
-                    </div>
-                    {% endfor %}
-                </div>
-            </article>
+    togglePasswordBtn.addEventListener('click', () => {
+      const isPassword = passwordInput.type === 'password';
+      passwordInput.type = isPassword ? 'text' : 'password';
+      togglePasswordBtn.textContent = isPassword ? 'Скрыть' : 'Показать';
+    });
 
-            <article class="card glass">
-                <h3>Предупреждения</h3>
-                {% if result.warnings %}
-                    <ul class="info-list warning-list">
-                        {% for item in result.warnings %}
-                        <li>{{ item }}</li>
-                        {% endfor %}
-                    </ul>
-                {% else %}
-                    <p class="empty-state">Серьёзных предупреждений нет.</p>
-                {% endif %}
-            </article>
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
 
-            <article class="card glass">
-                <h3>Рекомендации</h3>
-                {% if result.tips %}
-                    <ul class="info-list tip-list">
-                        {% for item in result.tips %}
-                        <li>{{ item }}</li>
-                        {% endfor %}
-                    </ul>
-                {% else %}
-                    <p class="empty-state">Дополнительных советов нет.</p>
-                {% endif %}
-            </article>
-        </section>
-        {% endif %}
-    </main>
+      const response = await fetch('/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          password: passwordInput.value,
+          name: nameInput.value,
+          birth_year: birthYearInput.value,
+        }),
+      });
+
+      const data = await response.json();
+      renderResult(data);
+    });
+
+    function renderResult(data) {
+      levelEl.textContent = data.level;
+      scoreEl.textContent = `${data.score}/100`;
+      meterFillEl.style.width = `${data.score}%`;
+
+      const checks = [
+        [`Длина: ${data.checks.length} символов`, data.checks.length >= 8],
+        ['Есть буквы', data.checks.has_letters],
+        ['Есть цифры', data.checks.has_digits],
+        ['Есть спецсимволы', data.checks.has_special],
+        ['Есть верхний регистр', data.checks.has_upper],
+        ['Нет простых последовательностей', !data.checks.sequential],
+        ['Нет повторов', !data.checks.repeated],
+        ['Нет личных данных', !data.checks.personal_data],
+      ];
+
+      checkGridEl.innerHTML = checks
+        .map(([label, ok]) => `
+          <div class="check-item ${ok ? 'ok' : 'bad'}">
+            <span class="dot"></span>
+            ${label}
+          </div>
+        `)
+        .join('');
+
+      warningsListEl.innerHTML = data.warnings.length
+        ? data.warnings.map(item => `<li>${item}</li>`).join('')
+        : '<li>Критичных предупреждений не найдено.</li>';
+
+      tipsListEl.innerHTML = data.tips.length
+        ? data.tips.map(item => `<li>${item}</li>`).join('')
+        : '<li>Подсказки не требуются.</li>';
+    }
+  </script>
 </body>
 </html>

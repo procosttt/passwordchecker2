@@ -76,6 +76,27 @@ body {
   line-height: 1.7;
 }
 
+.project-note {
+  margin-top: 18px;
+  max-width: 680px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(118, 167, 255, 0.16);
+  background: rgba(255, 255, 255, 0.045);
+  color: #d8e4fb;
+  line-height: 1.65;
+  font-size: 0.96rem;
+}
+
+.project-note strong {
+  color: #ffffff;
+}
+
+.project-note span {
+  color: #9fc2ff;
+  font-weight: 700;
+}
+
 .badge,
 .eyebrow {
   display: inline-flex;
@@ -317,5 +338,10 @@ li + li {
 
   .score-box {
     text-align: left;
+  }
+
+  .project-note {
+    font-size: 0.92rem;
+    padding: 12px 14px;
   }
 }
